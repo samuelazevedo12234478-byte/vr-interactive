@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Futebol - Chute ao Gol</title>
+  <title>AR Futebol - Câmera Traseira & Giroscópio</title>
   
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   
@@ -36,7 +36,6 @@
       height: 100vh;
       object-fit: cover;
       z-index: 0;
-      opacity: 0.25; /* Deixa o fundo imersivo misturando o real com o virtual */
     }
 
     a-scene {
@@ -99,14 +98,14 @@
 </head>
 <body>
 
-  <button id="startBtn">⚽ Iniciar Jogo AR</button>
+  <button id="startBtn">⚽ Iniciar Jogo AR (Câmera Traseira)</button>
   <div id="scoreBoard">Gols: <span id="goalsCount">0</span> | Placar do Goleiro: <span id="keeperCount">0</span></div>
   
   <video id="webcam" playsinline autoplay muted></video>
   <canvas id="hand_canvas"></canvas>
 
   <a-scene embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: true;">
-    <a-entity id="main-camera" camera look-controls="enabled: false" position="0 1.6 0"></a-entity>
+    <a-entity id="main-camera" camera look-controls="enabled: true; magicWindowTrackingEnabled: true" position="0 1.6 0"></a-entity>
 
     <a-plane position="0 0 -2" rotation="-90 0 0" width="6" height="8" material="color: #047857; roughness: 0.9;"></a-plane>
     <a-plane position="0 0.01 -2" rotation="-90 0 0" width="2" height="4" material="color: #065f46; wireframe: true;"></a-plane>
@@ -145,12 +144,28 @@
     let goalkeeperMoving = false;
 
     startBtn.addEventListener('click', async () => {
+      // Solicitar permissão do Giroscópio em dispositivos móveis (iOS/Android modernos)
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+          await DeviceOrientationEvent.requestPermission();
+        } catch (e) {
+          console.error("Permissão de giroscópio negada ou não suportada", e);
+        }
+      }
+
       startBtn.style.display = 'none';
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: { exact: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false
+        }).catch(() => {
+          // Fallback caso a câmera traseira exata não esteja disponível
+          return navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+          });
         });
+
         videoElement.srcObject = stream;
         await videoElement.play();
 
@@ -164,8 +179,8 @@
         hands.setOptions({
           maxNumHands: 1,
           modelComplexity: 1,
-          minDetectionConfidence: 0.6,
-          minTrackingConfidence: 0.6
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
         });
 
         hands.onResults(onHandResults);
@@ -180,7 +195,7 @@
         camera.start();
       } catch (err) {
         console.error(err);
-        alert("Erro ao acessar a câmera. Verifique as permissões.");
+        alert("Erro ao acessar a câmera traseira. Verifique as permissões do navegador.");
         startBtn.style.display = 'block';
       }
     });
@@ -194,14 +209,13 @@
 
       const landmarks = results.multiHandLandmarks[0];
 
-      // Mapeamento da mão simulando o "pé" no espaço 3D virtual
+      // Mapeamento da mão/pé virtual na tela
       const handX = (landmarks[9].x - 0.5) * -3.5;
       const handY = -(landmarks[9].y - 0.5) * 2.0 + 0.5;
       const handZ = -1.5;
 
       virtualFoot.setAttribute('position', `${handX} ${Math.max(0.05, handY)} ${handZ}`);
 
-      // Se a bola ainda não foi chutada, verificar colisão com o pé virtual
       if (!isKicked) {
         const ballPos = football.getAttribute('position');
         const distance = Math.hypot(
@@ -210,54 +224,46 @@
           ballPos.z - handZ
         );
 
-        // Se o pé tocar na bola, aplica a física de chute baseada na posição do contato
         if (distance < 0.3) {
           isKicked = true;
           
-          // Lógica de direção baseada em onde o pé pegou na bola (física direcional)
-          const offsetX = ballPos.x - handX; // Se bateu de um lado, vai pro outro
+          // Física direcional baseada no ponto de contato
+          const offsetX = ballPos.x - handX;
           kickVelocity.x = offsetX * 3.5;
           kickVelocity.y = 0.08;
-          kickVelocity.z = -0.35; // Direção ao gol
+          kickVelocity.z = -0.35;
 
-          // O goleiro escolhe um canto aleatório para defender no momento do chute
+          // IA do Goleiro escolhe o canto ao chutar
           goalkeeperTargetX = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 0.7);
           goalkeeperMoving = true;
         }
       }
     }
 
-    // Loop de Animação do Jogo (Física e IA do Goleiro)
     function gameLoop() {
       if (isKicked) {
         const pos = football.getAttribute('position');
         const gkPos = goalkeeper.getAttribute('position');
 
-        // Atualiza posição da bola
         pos.x += kickVelocity.x;
         pos.y += kickVelocity.y;
         pos.z += kickVelocity.z;
         football.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
 
-        // Movimento simples do Goleiro em direção ao alvo escolhido
         if (gkPos.x < goalkeeperTargetX) gkPos.x += 0.04;
         if (gkPos.x > goalkeeperTargetX) gkPos.x -= 0.04;
         goalkeeper.setAttribute('position', `${gkPos.x} ${gkPos.y} ${gkPos.z}`);
 
-        // Verificar colisão com o Goleiro (Defesa)
         const distGK = Math.hypot(pos.x - gkPos.x, pos.y - gkPos.y, pos.z - gkPos.z);
         if (distGK < 0.45) {
           keeperSaves++;
           keeperCountEl.innerText = keeperSaves;
           resetBall();
-        } 
-        // Verificar se entrou no Gol
-        else if (pos.z <= -4.0) {
+        } else if (pos.z <= -4.0) {
           if (Math.abs(pos.x) < 1.0 && pos.y < 1.8) {
             goals++;
             goalsCountEl.innerText = goals;
           } else {
-            // Foi para fora
             keeperSaves++;
             keeperCountEl.innerText = keeperSaves;
           }
@@ -275,9 +281,7 @@
       goalkeeperMoving = false;
     }
 
-    // Inicia o loop de física
     requestAnimationFrame(gameLoop);
   </script>
 </body>
 </html>
-
