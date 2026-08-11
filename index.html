@@ -3,116 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meta Quest Spatial OS - Tamanho Fixo da Palma</title>
+  <title>Meta Quest Spatial OS - Ki Energy Ball</title>
   
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-    }
-
-    body, html {
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      background: #000;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: sans-serif; }
     .a-enter-vr { display: none !important; }
-
-    #webcam {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      z-index: 0;
-    }
-
-    a-scene {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 10;
-    }
-
-    #hand_canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 20;
-      pointer-events: none;
-    }
-
+    #webcam { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; }
+    a-scene { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; }
+    #hand_canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 20; pointer-events: none; }
     #startBtn {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 200;
-      padding: 18px 36px;
-      font-size: 1.1rem;
-      font-weight: bold;
-      color: #ffffff;
-      background: linear-gradient(135deg, #f97316, #ea580c);
-      border: none;
-      border-radius: 50px;
-      cursor: pointer;
-      box-shadow: 0 10px 30px rgba(234, 88, 12, 0.4);
-      transition: all 0.2s ease;
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 200;
+      padding: 18px 36px; font-size: 1.1rem; font-weight: bold; color: #fff;
+      background: linear-gradient(135deg, #f97316, #ea580c); border: none; border-radius: 50px;
+      cursor: pointer; box-shadow: 0 10px 30px rgba(234, 88, 12, 0.4);
     }
-
     #statusLog {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 200;
-      color: #1e293b;
-      font-size: 0.9rem;
-      font-weight: 700;
-      background: rgba(255, 255, 255, 0.92);
-      padding: 10px 24px;
-      border-radius: 30px;
-      border: 2px solid #f97316;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-      white-space: nowrap;
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 200;
+      color: #1e293b; font-size: 0.9rem; font-weight: 700; background: rgba(255, 255, 255, 0.92);
+      padding: 10px 24px; border-radius: 30px; border: 2px solid #f97316;
     }
   </style>
 </head>
 <body>
 
-  <button id="startBtn">🚀 Iniciar AR (Tamanho Estável)</button>
-  <div id="statusLog">Clique para iniciar</div>
+  <button id="startBtn">🔥 Iniciar Modo Ki Ball</button>
+  <div id="statusLog">Feche a mão 2x para invocar a energia</div>
   
   <video id="webcam" playsinline autoplay muted></video>
   <canvas id="hand_canvas"></canvas>
 
   <a-scene embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: true;">
-    <a-entity id="main-camera" camera look-controls="enabled: true; magicWindowTrackingEnabled: true" position="0 1.6 0"></a-entity>
+    <a-sphere id="energyBall" position="0 -10 -2" radius="0.25" color="#ffaa00"
+              material="emissive: #ff6600; emissiveIntensity: 2; shader: flat; transparent: true; opacity: 0"
+              visible="false">
+      <a-sphere radius="0.15" color="#ffffff" material="shader: flat"></a-sphere>
+    </a-sphere>
+
+    <a-entity id="main-camera" camera look-controls position="0 1.6 0"></a-entity>
   </a-scene>
 
   <script>
     const videoElement = document.getElementById('webcam');
     const handCanvas = document.getElementById('hand_canvas');
     const handCtx = handCanvas.getContext('2d');
-    
     const startBtn = document.getElementById('startBtn');
     const statusLog = document.getElementById('statusLog');
+    const energyBall = document.getElementById('energyBall');
 
-    // Mapeamento dos pontos das articulações da mão
     const HAND_CONNECTIONS = [
       [0, 1], [1, 2], [2, 3], [3, 4],
       [0, 5], [5, 6], [6, 7], [7, 8],
@@ -121,12 +63,19 @@
       [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]
     ];
 
+    // Variáveis do Estado do Golpe
+    let isFistClosed = false;
+    let fistCloseCount = 0;
+    let lastFistTime = 0;
+    let ballState = "IDLE"; // IDLE, CHARGING, FLYING, EXPLODING
+    let ballVel = { x: 0, y: 0, z: 0 };
+
     const hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
     hands.setOptions({
-      maxNumHands: 2,
+      maxNumHands: 1,
       modelComplexity: 1,
       minDetectionConfidence: 0.7,
       minTrackingConfidence: 0.7
@@ -142,32 +91,117 @@
       handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
 
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        for (const landmarks of results.multiHandLandmarks) {
-          drawHandMesh(landmarks);
-        }
+        const landmarks = results.multiHandLandmarks[0];
+        drawHandMesh(landmarks);
+        detectGokuGesture(landmarks);
       }
 
       handCtx.restore();
     });
 
+    function detectGokuGesture(landmarks) {
+      const wrist = landmarks[0];
+      // Checa a distância das pontas dos dedos até o pulso
+      const tips = [8, 12, 16, 20];
+      let closedFingers = 0;
+
+      tips.forEach(tipIdx => {
+        const dist = Math.hypot(landmarks[tipIdx].x - wrist.x, landmarks[tipIdx].y - wrist.wrist);
+        if (dist < 0.28) closedFingers++;
+      });
+
+      const currentlyClosed = closedFingers >= 3;
+      const now = Date.now();
+
+      // Transição: Abriu -> Fechou a mão
+      if (currentlyClosed && !isFistClosed) {
+        if (now - lastFistTime < 600) { // Fechou duas vezes rápido (menos de 0.6s)
+          fistCloseCount++;
+        } else {
+          fistCloseCount = 1;
+        }
+        lastFistTime = now;
+
+        if (fistCloseCount === 2 && ballState === "IDLE") {
+          ballState = "CHARGING";
+          statusLog.innerText = "⚡ CARREGANDO ENERGIA!";
+          energyBall.setAttribute('visible', 'true');
+          energyBall.setAttribute('material', 'opacity', '0.9');
+          energyBall.setAttribute('scale', '1 1 1');
+        }
+      } 
+      // Transição: Tava Carregando e Abriu a mão = DISPARA!
+      else if (!currentlyClosed && isFistClosed && ballState === "CHARGING") {
+        ballState = "FLYING";
+        statusLog.innerText = "💥 KAMEHAMEHA!";
+        
+        // Direção do disparo baseada na câmera
+        const camera = document.getElementById('main-camera').object3D;
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        ballVel = { x: dir.x * 0.3, y: dir.y * 0.3, z: dir.z * 0.3 };
+      }
+
+      isFistClosed = currentlyClosed;
+
+      // Posição da bola acompanhando a mão enquanto carrega
+      if (ballState === "CHARGING") {
+        const middleBase = landmarks[9];
+        // Converte coordenadas da tela para 3D básico no A-Frame
+        const x3d = (middleBase.x - 0.5) * 3;
+        const y3d = -(middleBase.y - 0.5) * 2 + 1.2;
+        energyBall.setAttribute('position', `${x3d} ${y3d} -1.2`);
+      }
+    }
+
+    // Loop de Animação da Esfera no A-Frame
+    function animateFrame() {
+      if (ballState === "FLYING") {
+        const pos = energyBall.getAttribute('position');
+        pos.x += ballVel.x;
+        pos.y += ballVel.y;
+        pos.z += ballVel.z;
+        energyBall.setAttribute('position', pos);
+
+        // Quando a bola chega longe, estoura
+        if (Math.abs(pos.z) > 8 || Math.abs(pos.x) > 5) {
+          triggerExplosion(pos);
+        }
+      }
+
+      requestAnimationFrame(animateFrame);
+    }
+    animateFrame();
+
+    function triggerExplosion(pos) {
+      ballState = "EXPLODING";
+      statusLog.innerText = "🔥 CABOOM!";
+      
+      // Mini explosão: expande a bola rápido e some
+      energyBall.setAttribute('scale', '3 3 3');
+      energyBall.setAttribute('material', 'opacity', '0.3');
+
+      setTimeout(() => {
+        energyBall.setAttribute('visible', 'false');
+        energyBall.setAttribute('scale', '1 1 1');
+        ballState = "IDLE";
+        fistCloseCount = 0;
+        statusLog.innerText = "Feche a mão 2x para invocar a energia";
+      }, 300);
+    }
+
     function drawHandMesh(landmarks) {
       const screenW = handCanvas.width;
       const screenH = handCanvas.height;
-
-      // Medição baseada na distância do Pulso (0) até a base do Dedo Médio (9)
       const wrist = landmarks[0];
       const middleBase = landmarks[9];
       const palmSize = Math.hypot((middleBase.x - wrist.x) * screenW, (middleBase.y - wrist.y) * screenH);
       
-      // Proporções estáveis e dinâmicas relativas à distância da câmera
       const lineWidth = Math.max(4, palmSize * 0.04);
       const pointRadius = Math.max(6, palmSize * 0.06);
 
-      // Deseno das linhas conectoras (Laranja)
       for (const connection of HAND_CONNECTIONS) {
         const from = landmarks[connection[0]];
         const to = landmarks[connection[1]];
-        
         handCtx.beginPath();
         handCtx.moveTo(from.x * screenW, from.y * screenH);
         handCtx.lineTo(to.x * screenW, to.y * screenH);
@@ -176,7 +210,6 @@
         handCtx.stroke();
       }
 
-      // Desenho das articulações (Bolinhas brancas com borda laranja)
       for (const landmark of landmarks) {
         handCtx.beginPath();
         handCtx.arc(landmark.x * screenW, landmark.y * screenH, pointRadius, 0, 2 * Math.PI);
@@ -190,18 +223,9 @@
 
     async function startApp() {
       startBtn.style.display = 'none';
-
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        try { await DeviceOrientationEvent.requestPermission(); } catch(e) {}
-      }
-
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false
         });
         videoElement.srcObject = stream;
@@ -214,7 +238,6 @@
           requestAnimationFrame(processFrame);
         };
         processFrame();
-        statusLog.innerText = "✨ Rastreamento Estável (Tamanho Fixo por Distância)";
       } catch (err) {
         statusLog.innerText = "⚠️ Erro ao abrir a câmera.";
       }
