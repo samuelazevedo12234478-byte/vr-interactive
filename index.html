@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meta Quest Spatial OS - VR Box 2 Mãos Ajustado</title>
+  <title>Meta Quest Spatial OS - Tamanho Fixo da Palma</title>
   
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -94,7 +94,7 @@
 </head>
 <body>
 
-  <button id="startBtn">🚀 Iniciar AR (Detecção Precisa)</button>
+  <button id="startBtn">🚀 Iniciar AR (Tamanho Estável)</button>
   <div id="statusLog">Clique para iniciar</div>
   
   <video id="webcam" playsinline autoplay muted></video>
@@ -112,15 +112,23 @@
     const startBtn = document.getElementById('startBtn');
     const statusLog = document.getElementById('statusLog');
 
-    // MEDIAPIPE HANDS - CONFIGURAÇÃO DE ALTA PRECISÃO
+    // Mapeamento dos pontos das articulações da mão
+    const HAND_CONNECTIONS = [
+      [0, 1], [1, 2], [2, 3], [3, 4],
+      [0, 5], [5, 6], [6, 7], [7, 8],
+      [5, 9], [9, 10], [10, 11], [11, 12],
+      [9, 13], [13, 14], [14, 15], [15, 16],
+      [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]
+    ];
+
     const hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
     hands.setOptions({
       maxNumHands: 2,
-      modelComplexity: 1, // Usa o modelo completo (mais preciso)
-      minDetectionConfidence: 0.7, // Aumentado para evitar falsos positivos
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
       minTrackingConfidence: 0.7
     });
 
@@ -146,16 +154,16 @@
       const screenW = handCanvas.width;
       const screenH = handCanvas.height;
 
-      // Calcula o tamanho da mão dinamicamente baseado na distância do pulso ao dedo médio
+      // Medição baseada na distância do Pulso (0) até a base do Dedo Médio (9)
       const wrist = landmarks[0];
-      const middleTip = landmarks[12];
-      const handSize = Math.hypot((middleTip.x - wrist.x) * screenW, (middleTip.y - wrist.y) * screenH);
+      const middleBase = landmarks[9];
+      const palmSize = Math.hypot((middleBase.x - wrist.x) * screenW, (middleBase.y - wrist.y) * screenH);
       
-      // Espessura e raio dinâmicos baseados no tamanho real da mão detectada
-      const lineWidth = Math.max(3, handSize * 0.02);
-      const pointRadius = Math.max(4, handSize * 0.035);
+      // Proporções estáveis e dinâmicas relativas à distância da câmera
+      const lineWidth = Math.max(4, palmSize * 0.04);
+      const pointRadius = Math.max(6, palmSize * 0.06);
 
-      // Linhas da mão (Laranja)
+      // Deseno das linhas conectoras (Laranja)
       for (const connection of HAND_CONNECTIONS) {
         const from = landmarks[connection[0]];
         const to = landmarks[connection[1]];
@@ -168,14 +176,14 @@
         handCtx.stroke();
       }
 
-      // Pontos das articulações (Branco com borda Laranja)
+      // Desenho das articulações (Bolinhas brancas com borda laranja)
       for (const landmark of landmarks) {
         handCtx.beginPath();
         handCtx.arc(landmark.x * screenW, landmark.y * screenH, pointRadius, 0, 2 * Math.PI);
         handCtx.fillStyle = '#ffffff';
         handCtx.fill();
         handCtx.strokeStyle = '#ea580c';
-        handCtx.lineWidth = Math.max(1.5, lineWidth * 0.5);
+        handCtx.lineWidth = Math.max(2, lineWidth * 0.4);
         handCtx.stroke();
       }
     }
@@ -206,7 +214,7 @@
           requestAnimationFrame(processFrame);
         };
         processFrame();
-        statusLog.innerText = "✨ Rastreamento Dinâmico de Alta Precisão!";
+        statusLog.innerText = "✨ Rastreamento Estável (Tamanho Fixo por Distância)";
       } catch (err) {
         statusLog.innerText = "⚠️ Erro ao abrir a câmera.";
       }
