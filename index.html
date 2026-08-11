@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Futebol - Câmera Traseira & Giroscópio</title>
+  <title>Meta Quest Spatial OS - White & Orange Edition</title>
   
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-  
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
@@ -22,7 +21,7 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: #0b0f19;
+      background: #f8fafc;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
@@ -57,231 +56,151 @@
       pointer-events: none;
     }
 
+    /* ESTILO BRANCO E LARANJA */
     #startBtn {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       z-index: 200;
-      padding: 20px 40px;
-      font-size: 1.2rem;
+      padding: 18px 36px;
+      font-size: 1.1rem;
       font-weight: bold;
-      color: #fff;
-      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
+      background: linear-gradient(135deg, #f97316, #ea580c);
       border: none;
       border-radius: 50px;
       cursor: pointer;
-      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.5);
-      transition: transform 0.2s;
+      box-shadow: 0 10px 30px rgba(234, 88, 12, 0.4);
+      transition: all 0.2s ease;
     }
 
     #startBtn:hover {
       transform: translate(-50%, -50%) scale(1.05);
     }
 
-    #scoreBoard {
+    #statusLog {
       position: absolute;
       top: 20px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 200;
-      color: #fff;
-      font-size: 1.1rem;
-      font-weight: bold;
-      background: rgba(15, 23, 42, 0.9);
-      padding: 10px 25px;
+      color: #1e293b;
+      font-size: 0.9rem;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 10px 24px;
       border-radius: 30px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: 2px solid #f97316;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+      white-space: nowrap;
     }
   </style>
 </head>
 <body>
 
-  <button id="startBtn">⚽ Iniciar Jogo AR (Câmera Traseira)</button>
-  <div id="scoreBoard">Gols: <span id="goalsCount">0</span> | Placar do Goleiro: <span id="keeperCount">0</span></div>
+  <button id="startBtn">🚀 Iniciar Sistema AR (Branco & Laranja)</button>
+  <div id="statusLog">Clique no botão para iniciar</div>
   
   <video id="webcam" playsinline autoplay muted></video>
   <canvas id="hand_canvas"></canvas>
 
   <a-scene embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: true;">
     <a-entity id="main-camera" camera look-controls="enabled: true; magicWindowTrackingEnabled: true" position="0 1.6 0"></a-entity>
-
-    <a-plane position="0 0 -2" rotation="-90 0 0" width="6" height="8" material="color: #047857; roughness: 0.9;"></a-plane>
-    <a-plane position="0 0.01 -2" rotation="-90 0 0" width="2" height="4" material="color: #065f46; wireframe: true;"></a-plane>
-
-    <a-entity id="goal-structure" position="0 1 -4">
-      <a-box position="-1 0 0" width="0.1" height="2" depth="0.1" material="color: #ffffff;"></a-box>
-      <a-box position="1 0 0" width="0.1" height="2" depth="0.1" material="color: #ffffff;"></a-box>
-      <a-box position="0 1 0" width="2.1" height="0.1" depth="0.1" material="color: #ffffff;"></a-box>
-      <a-box position="0 0 -0.5" width="2" height="2" depth="1" material="color: #3b82f6; opacity: 0.15; transparent: true; wireframe: true;"></a-box>
-    </a-entity>
-
-    <a-box id="goalkeeper" position="0 1 -3.8" width="0.6" height="1.2" depth="0.2" material="color: #ef4444; roughness: 0.3;"></a-box>
-
-    <a-sphere id="football" position="0 0.15 -1.5" radius="0.15" material="color: #ffffff; roughness: 0.2;"></a-sphere>
-
-    <a-sphere id="virtual-foot" position="0 0 -1" radius="0.08" material="color: #f59e0b; opacity: 0.8; transparent: true;"></a-sphere>
   </a-scene>
 
   <script>
     const videoElement = document.getElementById('webcam');
     const handCanvas = document.getElementById('hand_canvas');
     const handCtx = handCanvas.getContext('2d');
+    
     const startBtn = document.getElementById('startBtn');
-    const goalsCountEl = document.getElementById('goalsCount');
-    const keeperCountEl = document.getElementById('keeperCount');
+    const statusLog = document.getElementById('statusLog');
 
-    const football = document.getElementById('football');
-    const virtualFoot = document.getElementById('virtual-foot');
-    const goalkeeper = document.getElementById('goalkeeper');
+    // MEDIAPIPE HANDS
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
 
-    let goals = 0;
-    let keeperSaves = 0;
-    let isKicked = false;
-    let kickVelocity = { x: 0, y: 0, z: 0 };
-    let goalkeeperTargetX = 0;
-    let goalkeeperMoving = false;
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
 
-    startBtn.addEventListener('click', async () => {
-      // Solicitar permissão do Giroscópio em dispositivos móveis (iOS/Android modernos)
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        try {
-          await DeviceOrientationEvent.requestPermission();
-        } catch (e) {
-          console.error("Permissão de giroscópio negada ou não suportada", e);
-        }
+    hands.onResults((results) => {
+      handCanvas.width = window.innerWidth;
+      handCanvas.height = window.innerHeight;
+
+      handCtx.save();
+      handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        
+        // Desenhar a malha no tema Laranja e Branco
+        drawHandMesh(landmarks);
       }
 
+      handCtx.restore();
+    });
+
+    // DESENHO DA MÃO NO TEMA BRANCO E LARANJA
+    function drawHandMesh(landmarks) {
+      for (const connection of HAND_CONNECTIONS) {
+        const from = landmarks[connection[0]];
+        const to = landmarks[connection[1]];
+        
+        handCtx.beginPath();
+        handCtx.moveTo(from.x * handCanvas.width, from.y * handCanvas.height);
+        handCtx.lineTo(to.x * handCanvas.width, to.y * handCanvas.height);
+        handCtx.strokeStyle = '#f97316'; // Laranja
+        handCtx.lineWidth = 4;
+        handCtx.stroke();
+      }
+
+      // Pontos das articulações em Branco com borda Laranja
+      for (const landmark of landmarks) {
+        handCtx.beginPath();
+        handCtx.arc(landmark.x * handCanvas.width, landmark.y * handCanvas.height, 5, 0, 2 * Math.PI);
+        handCtx.fillStyle = '#ffffff';
+        handCtx.fill();
+        handCtx.strokeStyle = '#ea580c';
+        handCtx.lineWidth = 2;
+        handCtx.stroke();
+      }
+    }
+
+    async function startApp() {
       startBtn.style.display = 'none';
+
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try { await DeviceOrientationEvent.requestPermission(); } catch(e) {}
+      }
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: { ideal: "environment" } },
           audio: false
-        }).catch(() => {
-          // Fallback caso a câmera traseira exata não esteja disponível
-          return navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false
-          });
         });
-
         videoElement.srcObject = stream;
         await videoElement.play();
 
-        handCanvas.width = window.innerWidth;
-        handCanvas.height = window.innerHeight;
-
-        const hands = new Hands({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-
-        hands.setOptions({
-          maxNumHands: 1,
-          modelComplexity: 1,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5
-        });
-
-        hands.onResults(onHandResults);
-
-        const camera = new Camera(videoElement, {
-          onFrame: async () => {
+        const processFrame = async () => {
+          if (!videoElement.paused && !videoElement.ended) {
             await hands.send({ image: videoElement });
-          },
-          width: 1280,
-          height: 720
-        });
-        camera.start();
-      } catch (err) {
-        console.error(err);
-        alert("Erro ao acessar a câmera traseira. Verifique as permissões do navegador.");
-        startBtn.style.display = 'block';
-      }
-    });
-
-    function onHandResults(results) {
-      handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
-
-      if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-        return;
-      }
-
-      const landmarks = results.multiHandLandmarks[0];
-
-      // Mapeamento da mão/pé virtual na tela
-      const handX = (landmarks[9].x - 0.5) * -3.5;
-      const handY = -(landmarks[9].y - 0.5) * 2.0 + 0.5;
-      const handZ = -1.5;
-
-      virtualFoot.setAttribute('position', `${handX} ${Math.max(0.05, handY)} ${handZ}`);
-
-      if (!isKicked) {
-        const ballPos = football.getAttribute('position');
-        const distance = Math.hypot(
-          ballPos.x - handX,
-          ballPos.y - handY,
-          ballPos.z - handZ
-        );
-
-        if (distance < 0.3) {
-          isKicked = true;
-          
-          // Física direcional baseada no ponto de contato
-          const offsetX = ballPos.x - handX;
-          kickVelocity.x = offsetX * 3.5;
-          kickVelocity.y = 0.08;
-          kickVelocity.z = -0.35;
-
-          // IA do Goleiro escolhe o canto ao chutar
-          goalkeeperTargetX = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 0.7);
-          goalkeeperMoving = true;
-        }
-      }
-    }
-
-    function gameLoop() {
-      if (isKicked) {
-        const pos = football.getAttribute('position');
-        const gkPos = goalkeeper.getAttribute('position');
-
-        pos.x += kickVelocity.x;
-        pos.y += kickVelocity.y;
-        pos.z += kickVelocity.z;
-        football.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
-
-        if (gkPos.x < goalkeeperTargetX) gkPos.x += 0.04;
-        if (gkPos.x > goalkeeperTargetX) gkPos.x -= 0.04;
-        goalkeeper.setAttribute('position', `${gkPos.x} ${gkPos.y} ${gkPos.z}`);
-
-        const distGK = Math.hypot(pos.x - gkPos.x, pos.y - gkPos.y, pos.z - gkPos.z);
-        if (distGK < 0.45) {
-          keeperSaves++;
-          keeperCountEl.innerText = keeperSaves;
-          resetBall();
-        } else if (pos.z <= -4.0) {
-          if (Math.abs(pos.x) < 1.0 && pos.y < 1.8) {
-            goals++;
-            goalsCountEl.innerText = goals;
-          } else {
-            keeperSaves++;
-            keeperCountEl.innerText = keeperSaves;
           }
-          resetBall();
-        }
+          requestAnimationFrame(processFrame);
+        };
+        processFrame();
+        statusLog.innerText = "✨ Sistema Pronto - Tema Branco & Laranja";
+      } catch (err) {
+        statusLog.innerText = "⚠️ Erro ao abrir a câmera.";
       }
-      requestAnimationFrame(gameLoop);
     }
 
-    function resetBall() {
-      isKicked = false;
-      kickVelocity = { x: 0, y: 0, z: 0 };
-      football.setAttribute('position', '0 0.15 -1.5');
-      goalkeeper.setAttribute('position', '0 1 -3.8');
-      goalkeeperMoving = false;
-    }
-
-    requestAnimationFrame(gameLoop);
+    startBtn.addEventListener('click', startApp);
   </script>
 </body>
 </html>
