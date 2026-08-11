@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meta Quest Spatial OS - White & Orange Edition</title>
+  <title>Meta Quest Spatial OS - VR Box 2 Mãos Ajustado</title>
   
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -21,7 +21,7 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: #f8fafc;
+      background: #000;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
@@ -56,7 +56,6 @@
       pointer-events: none;
     }
 
-    /* ESTILO BRANCO E LARANJA */
     #startBtn {
       position: absolute;
       top: 50%;
@@ -73,10 +72,6 @@
       cursor: pointer;
       box-shadow: 0 10px 30px rgba(234, 88, 12, 0.4);
       transition: all 0.2s ease;
-    }
-
-    #startBtn:hover {
-      transform: translate(-50%, -50%) scale(1.05);
     }
 
     #statusLog {
@@ -99,8 +94,8 @@
 </head>
 <body>
 
-  <button id="startBtn">🚀 Iniciar Sistema AR (Branco & Laranja)</button>
-  <div id="statusLog">Clique no botão para iniciar</div>
+  <button id="startBtn">🚀 Iniciar AR (Detecção Precisa)</button>
+  <div id="statusLog">Clique para iniciar</div>
   
   <video id="webcam" playsinline autoplay muted></video>
   <canvas id="hand_canvas"></canvas>
@@ -117,57 +112,70 @@
     const startBtn = document.getElementById('startBtn');
     const statusLog = document.getElementById('statusLog');
 
-    // MEDIAPIPE HANDS
+    // MEDIAPIPE HANDS - CONFIGURAÇÃO DE ALTA PRECISÃO
     const hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
     hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
+      maxNumHands: 2,
+      modelComplexity: 1, // Usa o modelo completo (mais preciso)
+      minDetectionConfidence: 0.7, // Aumentado para evitar falsos positivos
+      minTrackingConfidence: 0.7
     });
 
     hands.onResults((results) => {
-      handCanvas.width = window.innerWidth;
-      handCanvas.height = window.innerHeight;
+      if (handCanvas.width !== window.innerWidth || handCanvas.height !== window.innerHeight) {
+        handCanvas.width = window.innerWidth;
+        handCanvas.height = window.innerHeight;
+      }
 
       handCtx.save();
       handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
 
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-        
-        // Desenhar a malha no tema Laranja e Branco
-        drawHandMesh(landmarks);
+        for (const landmarks of results.multiHandLandmarks) {
+          drawHandMesh(landmarks);
+        }
       }
 
       handCtx.restore();
     });
 
-    // DESENHO DA MÃO NO TEMA BRANCO E LARANJA
     function drawHandMesh(landmarks) {
+      const screenW = handCanvas.width;
+      const screenH = handCanvas.height;
+
+      // Calcula o tamanho da mão dinamicamente baseado na distância do pulso ao dedo médio
+      const wrist = landmarks[0];
+      const middleTip = landmarks[12];
+      const handSize = Math.hypot((middleTip.x - wrist.x) * screenW, (middleTip.y - wrist.y) * screenH);
+      
+      // Espessura e raio dinâmicos baseados no tamanho real da mão detectada
+      const lineWidth = Math.max(3, handSize * 0.02);
+      const pointRadius = Math.max(4, handSize * 0.035);
+
+      // Linhas da mão (Laranja)
       for (const connection of HAND_CONNECTIONS) {
         const from = landmarks[connection[0]];
         const to = landmarks[connection[1]];
         
         handCtx.beginPath();
-        handCtx.moveTo(from.x * handCanvas.width, from.y * handCanvas.height);
-        handCtx.lineTo(to.x * handCanvas.width, to.y * handCanvas.height);
-        handCtx.strokeStyle = '#f97316'; // Laranja
-        handCtx.lineWidth = 4;
+        handCtx.moveTo(from.x * screenW, from.y * screenH);
+        handCtx.lineTo(to.x * screenW, to.y * screenH);
+        handCtx.strokeStyle = '#f97316';
+        handCtx.lineWidth = lineWidth;
         handCtx.stroke();
       }
 
-      // Pontos das articulações em Branco com borda Laranja
+      // Pontos das articulações (Branco com borda Laranja)
       for (const landmark of landmarks) {
         handCtx.beginPath();
-        handCtx.arc(landmark.x * handCanvas.width, landmark.y * handCanvas.height, 5, 0, 2 * Math.PI);
+        handCtx.arc(landmark.x * screenW, landmark.y * screenH, pointRadius, 0, 2 * Math.PI);
         handCtx.fillStyle = '#ffffff';
         handCtx.fill();
         handCtx.strokeStyle = '#ea580c';
-        handCtx.lineWidth = 2;
+        handCtx.lineWidth = Math.max(1.5, lineWidth * 0.5);
         handCtx.stroke();
       }
     }
@@ -181,7 +189,11 @@
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
+          video: { 
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
           audio: false
         });
         videoElement.srcObject = stream;
@@ -194,7 +206,7 @@
           requestAnimationFrame(processFrame);
         };
         processFrame();
-        statusLog.innerText = "✨ Sistema Pronto - Tema Branco & Laranja";
+        statusLog.innerText = "✨ Rastreamento Dinâmico de Alta Precisão!";
       } catch (err) {
         statusLog.innerText = "⚠️ Erro ao abrir a câmera.";
       }
