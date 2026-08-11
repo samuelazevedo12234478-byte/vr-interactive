@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AR Futebol - Chute ao Gol</title>
+  
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #0b0f19;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .a-enter-vr { display: none !important; }
+
+    #webcam {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 0;
+      opacity: 0.25; /* Deixa o fundo imersivo misturando o real com o virtual */
+    }
+
+    a-scene {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 10;
+    }
+
+    #hand_canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    #startBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 200;
+      padding: 20px 40px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #fff;
+      background: linear-gradient(135deg, #10b981, #059669);
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.5);
+      transition: transform 0.2s;
+    }
+
+    #startBtn:hover {
+      transform: translate(-50%, -50%) scale(1.05);
+    }
+
+    #scoreBoard {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: bold;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 10px 25px;
+      border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <button id="startBtn">⚽ Iniciar Jogo AR</button>
+  <div id="scoreBoard">Gols: <span id="goalsCount">0</span> | Placar do Goleiro: <span id="keeperCount">0</span></div>
+  
+  <video id="webcam" playsinline autoplay muted></video>
+  <canvas id="hand_canvas"></canvas>
+
+  <a-scene embedded vr-mode-ui="enabled: false" renderer="alpha: true; antialias: true;">
+    <a-entity id="main-camera" camera look-controls="enabled: false" position="0 1.6 0"></a-entity>
+
+    <a-plane position="0 0 -2" rotation="-90 0 0" width="6" height="8" material="color: #047857; roughness: 0.9;"></a-plane>
+    <a-plane position="0 0.01 -2" rotation="-90 0 0" width="2" height="4" material="color: #065f46; wireframe: true;"></a-plane>
+
+    <a-entity id="goal-structure" position="0 1 -4">
+      <a-box position="-1 0 0" width="0.1" height="2" depth="0.1" material="color: #ffffff;"></a-box>
+      <a-box position="1 0 0" width="0.1" height="2" depth="0.1" material="color: #ffffff;"></a-box>
+      <a-box position="0 1 0" width="2.1" height="0.1" depth="0.1" material="color: #ffffff;"></a-box>
+      <a-box position="0 0 -0.5" width="2" height="2" depth="1" material="color: #3b82f6; opacity: 0.15; transparent: true; wireframe: true;"></a-box>
+    </a-entity>
+
+    <a-box id="goalkeeper" position="0 1 -3.8" width="0.6" height="1.2" depth="0.2" material="color: #ef4444; roughness: 0.3;"></a-box>
+
+    <a-sphere id="football" position="0 0.15 -1.5" radius="0.15" material="color: #ffffff; roughness: 0.2;"></a-sphere>
+
+    <a-sphere id="virtual-foot" position="0 0 -1" radius="0.08" material="color: #f59e0b; opacity: 0.8; transparent: true;"></a-sphere>
+  </a-scene>
+
+  <script>
+    const videoElement = document.getElementById('webcam');
+    const handCanvas = document.getElementById('hand_canvas');
+    const handCtx = handCanvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const goalsCountEl = document.getElementById('goalsCount');
+    const keeperCountEl = document.getElementById('keeperCount');
+
+    const football = document.getElementById('football');
+    const virtualFoot = document.getElementById('virtual-foot');
+    const goalkeeper = document.getElementById('goalkeeper');
+
+    let goals = 0;
+    let keeperSaves = 0;
+    let isKicked = false;
+    let kickVelocity = { x: 0, y: 0, z: 0 };
+    let goalkeeperTargetX = 0;
+    let goalkeeperMoving = false;
+
+    startBtn.addEventListener('click', async () => {
+      startBtn.style.display = 'none';
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        handCanvas.width = window.innerWidth;
+        handCanvas.height = window.innerHeight;
+
+        const hands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(onHandResults);
+
+        const camera = new Camera(videoElement, {
+          onFrame: async () => {
+            await hands.send({ image: videoElement });
+          },
+          width: 1280,
+          height: 720
+        });
+        camera.start();
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao acessar a câmera. Verifique as permissões.");
+        startBtn.style.display = 'block';
+      }
+    });
+
+    function onHandResults(results) {
+      handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+      if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+        return;
+      }
+
+      const landmarks = results.multiHandLandmarks[0];
+
+      // Mapeamento da mão simulando o "pé" no espaço 3D virtual
+      const handX = (landmarks[9].x - 0.5) * -3.5;
+      const handY = -(landmarks[9].y - 0.5) * 2.0 + 0.5;
+      const handZ = -1.5;
+
+      virtualFoot.setAttribute('position', `${handX} ${Math.max(0.05, handY)} ${handZ}`);
+
+      // Se a bola ainda não foi chutada, verificar colisão com o pé virtual
+      if (!isKicked) {
+        const ballPos = football.getAttribute('position');
+        const distance = Math.hypot(
+          ballPos.x - handX,
+          ballPos.y - handY,
+          ballPos.z - handZ
+        );
+
+        // Se o pé tocar na bola, aplica a física de chute baseada na posição do contato
+        if (distance < 0.3) {
+          isKicked = true;
+          
+          // Lógica de direção baseada em onde o pé pegou na bola (física direcional)
+          const offsetX = ballPos.x - handX; // Se bateu de um lado, vai pro outro
+          kickVelocity.x = offsetX * 3.5;
+          kickVelocity.y = 0.08;
+          kickVelocity.z = -0.35; // Direção ao gol
+
+          // O goleiro escolhe um canto aleatório para defender no momento do chute
+          goalkeeperTargetX = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 0.7);
+          goalkeeperMoving = true;
+        }
+      }
+    }
+
+    // Loop de Animação do Jogo (Física e IA do Goleiro)
+    function gameLoop() {
+      if (isKicked) {
+        const pos = football.getAttribute('position');
+        const gkPos = goalkeeper.getAttribute('position');
+
+        // Atualiza posição da bola
+        pos.x += kickVelocity.x;
+        pos.y += kickVelocity.y;
+        pos.z += kickVelocity.z;
+        football.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+
+        // Movimento simples do Goleiro em direção ao alvo escolhido
+        if (gkPos.x < goalkeeperTargetX) gkPos.x += 0.04;
+        if (gkPos.x > goalkeeperTargetX) gkPos.x -= 0.04;
+        goalkeeper.setAttribute('position', `${gkPos.x} ${gkPos.y} ${gkPos.z}`);
+
+        // Verificar colisão com o Goleiro (Defesa)
+        const distGK = Math.hypot(pos.x - gkPos.x, pos.y - gkPos.y, pos.z - gkPos.z);
+        if (distGK < 0.45) {
+          keeperSaves++;
+          keeperCountEl.innerText = keeperSaves;
+          resetBall();
+        } 
+        // Verificar se entrou no Gol
+        else if (pos.z <= -4.0) {
+          if (Math.abs(pos.x) < 1.0 && pos.y < 1.8) {
+            goals++;
+            goalsCountEl.innerText = goals;
+          } else {
+            // Foi para fora
+            keeperSaves++;
+            keeperCountEl.innerText = keeperSaves;
+          }
+          resetBall();
+        }
+      }
+      requestAnimationFrame(gameLoop);
+    }
+
+    function resetBall() {
+      isKicked = false;
+      kickVelocity = { x: 0, y: 0, z: 0 };
+      football.setAttribute('position', '0 0.15 -1.5');
+      goalkeeper.setAttribute('position', '0 1 -3.8');
+      goalkeeperMoving = false;
+    }
+
+    // Inicia o loop de física
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
+
